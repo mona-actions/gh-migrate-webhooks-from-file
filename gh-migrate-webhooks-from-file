@@ -149,7 +149,7 @@ GenerateLogFile() {
   # Create File Name #
   ####################
   # Example: MyOrg-all_repos-201901041059.csv
-  LOG_FILE_NAME="log-migrate-webhooks-$DATE.txt"
+  LOG_FILE_NAME="log-migrate-webhooks-$DATE.log"
 
   echo ""
   echo "Your log output file name: $LOG_FILE_NAME"
@@ -161,9 +161,9 @@ GenerateLogFile() {
   echo "Creating log file header..."
 
   # File format headers: 
-  echo "==================================================" >> "${LOG_FILE_NAME}" 2>&1
-  echo "========== Logging ===============================" >> "${LOG_FILE_NAME}" 2>&1
-  echo "===================================================" >> "${LOG_FILE_NAME}" 2>&1
+  echo "======================================================================" >> "${LOG_FILE_NAME}" 2>&1
+  echo "========== Logging for migrating webhooks from file - $DATE ====" >> "${LOG_FILE_NAME}" 2>&1
+  echo "======================================================================" >> "${LOG_FILE_NAME}" 2>&1
   echo "" >> "${LOG_FILE_NAME}" 2>&1
 
   #######################
@@ -224,10 +224,10 @@ GetGHEURLDestination() {
 
          read -r CONFIRM_CORRECT_GHES_DEST
         done
-    else
+     else
       echo "Alright. We will use GHEC API for your destination instance"
       DEST_URL=https://github.com
-    fi
+     fi
    fi
 
     ############################################
@@ -245,6 +245,16 @@ GetGHEURLDestination() {
     echo ""
     echo "DEST  URL: $DEST_URL"
     echo "DEST API URL: $DEST_API_URL"
+
+    # If logging is on:
+    if [ "$DEBUG" -eq 1 ]; then
+      DATE=$(date +%Y%m%d%H%M)
+
+      echo "[$DATE] - ===== Destination URL and API end point ============"  >> "${LOG_FILE_NAME}" 2>&1
+      echo "[$DATE] - DEST  URL: $DEST_URL" >> "${LOG_FILE_NAME}" 2>&1
+      echo "[$DATE] - DEST API URL: $DEST_API_URL" >> "${LOG_FILE_NAME}" 2>&1
+    fi
+
 }
 
 
@@ -274,9 +284,32 @@ GetPersonalAccessTokenDestination() {
      # Check the length of the PAT for sanity #
      ##########################################
      if [ ${#GH_TOKEN_DEST} -ne 40 ]; then
+       echo ""
+       echo "===== PAT Token verification ============" 
        echo "GitHub PAT are 40 characters in length! Your destination PAT has ${#GH_TOKEN_DEST} characters!"
-       echo "GitHub PAT are 40 characters in length! Your destination PAT has ${#GH_TOKEN_DEST} characters!" >> "$LOG_FILE_NAME"
+
+       # If logging is on:
+      if [ "$DEBUG" -eq 1 ]; then
+        DATE=$(date +%Y%m%d%H%M)
+
+        echo "" >> "$LOG_FILE_NAME" 2>&1
+        echo "[$DATE] - ===== PAT Token verification ============"  >> "$LOG_FILE_NAME" 2>&1
+        echo "[$DATE] - GitHub PAT are 40 characters in length! Your destination PAT has ${#GH_TOKEN_DEST} characters!" >> "$LOG_FILE_NAME" 2>&1
+      fi
+
        exit 1
+     else
+        echo ""
+        echo "===== Your PAT token verification ============"
+        echo "Great. Your PAT token looks good"
+        # If logging is on:
+        if [ "$DEBUG" -eq 1 ]; then
+          DATE=$(date +%Y%m%d%H%M)
+
+          echo "" >> "$LOG_FILE_NAME" 2>&1
+          echo "[$DATE] - ===== Your PAT token verification ============"  >> "$LOG_FILE_NAME" 2>&1
+          echo "[$DATE] - Great. Your PAT token looks good" >> "$LOG_FILE_NAME" 2>&1
+        fi
      fi
 }
 
@@ -304,13 +337,35 @@ GetOrganizations() {
     DEST_ORG_NAME_NO_WHITESPACE="$(echo -e "${DEST_ORG}" | tr -d '[:space:]')"
     DEST_ORG="${DEST_ORG_NAME_NO_WHITESPACE}"
 
+
     #########################
     # Validate the Org Name #
     #########################
     if [ ${#DEST_ORG} -le 1 ]; then
       echo "Error! You must give a valid destination Organization name!"
-      echo "Error! You must give a valid destination Organization name!">> "$LOG_FILE_NAME"
+
+       if [ "$DEBUG" -eq 1 ]; then
+          DATE=$(date +%Y%m%d%H%M)
+          
+          echo "" >> "$LOG_FILE_NAME" 2>&1
+          echo "[$DATE] - ===== Your Organization ============"  >> "$LOG_FILE_NAME" 2>&1
+          echo "[$DATE] - Error! You must give a valid destination Organization name!">> "$LOG_FILE_NAME"
+       fi
+
       exit 1
+    else
+      echo ""
+      echo "===== Your Organization ============"
+      echo "Alright. We will proceed with organization name $DEST_ORG"
+
+      # If logging is on:
+      if [ "$DEBUG" -eq 1 ]; then
+        DATE=$(date +%Y%m%d%H%M)
+
+        echo ""  >> "$LOG_FILE_NAME" 2>&1
+        echo "[$DATE] - ===== Your Organization ============" >> "$LOG_FILE_NAME" 2>&1
+        echo "[$DATE] - Alright. We will proceed with organization name $DEST_ORG" >> "$LOG_FILE_NAME" 2>&1
+      fi
     fi
   fi
 
@@ -351,6 +406,18 @@ CheckAPILimitDestination() {
     echo "Currently, we will go to sleep for $SLEEP seconds if your one of your remaining rate limits (core) is less than $MIN_RATELIMIT_GO2SLEEP"
     echo "You can change the minimum required check by changing [MIN_RATELIMIT_GO2SLEEP] value"
     echo ""
+
+
+    if [ "$DEBUG" -eq 1 ]; then
+      DATE=$(date +%Y%m%d%H%M)
+      
+      echo "" >> "$LOG_FILE_NAME" 2>&1
+      echo "=========================== Destination API RATE Limits ======================================"  >> "$LOG_FILE_NAME" 2>&1
+      echo "[$DATE] - Your total API  Rate limit for destination PAT is: ${API_TOTAL_DEST}">> "$LOG_FILE_NAME"
+      echo "[$DATE] - Your used API  Rate limit for destination PAT is: ${API_USED_DEST}">> "$LOG_FILE_NAME"
+      echo "[$DATE] - Your remaining API  Rate limit for destination PAT is: ${API_REMAINING_DEST}">> "$LOG_FILE_NAME"
+    fi
+    
     if [ "$API_REMAINING_DEST" -lt "$MIN_RATELIMIT_GO2SLEEP" ]; then
       Go2Sleep
     fi
@@ -369,6 +436,14 @@ CheckAPILimitDestination() {
   if [ "${ERROR_CODE}" -ne 0 ]; then
     echo "ERROR! Failed to get valid response back from GitHub API!"
     echo "ERROR:[${API_REMAINING_DEST}]"
+
+    if [ "$DEBUG" -eq 1 ]; then
+      DATE=$(date +%Y%m%d%H%M)
+      
+      echo "" >> "$LOG_FILE_NAME" 2>&1
+      echo "[$DATE] -=========================== Destination API RATE Limits ======================================"  >> "$LOG_FILE_NAME" 2>&1
+      echo "[$DATE] - ERROR! Failed to get valid response back from GitHub API!">> "$LOG_FILE_NAME"
+    fi
     exit 1
   fi
 }
@@ -419,6 +494,14 @@ ProceedMigration() {
 
   echo "Alright. We will proceed with migration"
 
+  if [ "$DEBUG" -eq 1 ]; then
+      DATE=$(date +%Y%m%d%H%M)
+    
+      echo "" >> "$LOG_FILE_NAME" 2>&1
+      echo "[$DATE] -=========================== Proceeding with migration ======================================"  >> "$LOG_FILE_NAME" 2>&1
+      echo "[$DATE] - We will proceed migration with file [$INPUT_FILE_NAME]">> "$LOG_FILE_NAME"
+  fi
+
   IFS=','
   COUNTER=0
 
@@ -441,13 +524,35 @@ ProceedMigration() {
       LIST_EVENTS_WEBHOOK_MIGRATION="${result_array[6]}"
       STRINGS_WEBHOOK_MIGRATION=$(addQuotation2String "$LIST_EVENTS_WEBHOOK_MIGRATION")
 
-      echo "ORG MIGRATION: $DEST_ORG REPO MIGRATION: $REPO_MIGRATION WEBHOOK URL MIGRATION: $WEBHOOK_URL_MIGRATION IS_ACTIVE_WEBHOOK_MIGRATION: $IS_ACTIVE_WEBHOOK_MIGRATION IS_INSECURE_SSL_WEBHOOK_MIGRATION: $IS_INSECURE_SSL_WEBHOOK_MIGRATION CONTENT_TYPE_WEBHOOK_MIGRATION: $CONTENT_TYPE_WEBHOOK_MIGRATION STRING_EVENTS_WEBHOOK_MIGRATION: $STRINGS_WEBHOOK_MIGRATION"
+      echo ""
+      echo "[$DATE] Migrating for $COUNTER item"
+      echo "[$DATE] --- Repo name to migrate to: $REPO_MIGRATION"
+      echo "[$DATE] --- Webhook URL to migrate to: $WEBHOOK_URL_MIGRATION"
+      echo "[$DATE] --- Webhook secret to migrate to: $WEBHOOK_SECRET_MIGRATION"
+      echo "[$DATE] --- Is Webhook Active?: $IS_ACTIVE_WEBHOOK_MIGRATION"
+      echo "[$DATE] --- Is insecure SSL?: $IS_INSECURE_SSL_WEBHOOK_MIGRATION"
+      echo "[$DATE] --- Webhook Payload Content Type: $CONTENT_TYPE_WEBHOOK_MIGRATION"
+      echo "[$DATE] --- Webhook Events trigger type: $STRINGS_WEBHOOK_MIGRATION"
 
+      if [ "$DEBUG" -eq 1 ]; then
+          DATE=$(date +%Y%m%d%H%M)
+        
+          echo "" >> "$LOG_FILE_NAME" 2>&1
+          echo "[$DATE] Migrating for $COUNTER item"  >> "$LOG_FILE_NAME" 2>&1
+          echo "[$DATE] --- Repo name to migrate to: $REPO_MIGRATION" >> "$LOG_FILE_NAME"
+          echo "[$DATE] --- Webhook URL to migrate to: $WEBHOOK_URL_MIGRATION" >> "$LOG_FILE_NAME"
+          echo "[$DATE] --- Webhook secret to migrate to: $WEBHOOK_SECRET_MIGRATION" >> "$LOG_FILE_NAME"
+          echo "[$DATE] --- Is Webhook Active?: $IS_ACTIVE_WEBHOOK_MIGRATION" >> "$LOG_FILE_NAME"
+          echo "[$DATE] --- Is insecure SSL?: $IS_INSECURE_SSL_WEBHOOK_MIGRATION" >> "$LOG_FILE_NAME"
+          echo "[$DATE] --- Webhook Payload Content Type: $CONTENT_TYPE_WEBHOOK_MIGRATION" >> "$LOG_FILE_NAME"
+          echo "[$DATE] --- Webhook Events trigger type: $STRINGS_WEBHOOK_MIGRATION" >> "$LOG_FILE_NAME"
+      fi
+    
       curl -X POST \
       -H "Accept: application/vnd.github.v3+json" \
       -H "Authorization: token $GH_TOKEN_DEST" \
       "$DEST_API_URL"/repos/"$DEST_ORG"/"$REPO_MIGRATION"/hooks \
-      -d '{"name":"web","active":'"$IS_ACTIVE_WEBHOOK_MIGRATION"',"events":'"$STRINGS_WEBHOOK_MIGRATION"',"config":{"'"$WEBHOOK_SECRET_MIGRATION"',"url":"'"$WEBHOOK_URL_MIGRATION"'","content_type":"'"$CONTENT_TYPE_WEBHOOK_MIGRATION"'","insecure_ssl":"'"$IS_INSECURE_SSL_WEBHOOK_MIGRATION"'"}}'
+      -d '{"name":"web","active":'"$IS_ACTIVE_WEBHOOK_MIGRATION"',"events":'"$STRINGS_WEBHOOK_MIGRATION"',"config":{"secret":"'"$WEBHOOK_SECRET_MIGRATION"'","url":"'"$WEBHOOK_URL_MIGRATION"'","content_type":"'"$CONTENT_TYPE_WEBHOOK_MIGRATION"'","insecure_ssl":"'"$IS_INSECURE_SSL_WEBHOOK_MIGRATION"'"}}'
 
       echo ""
       echo "Checking destination API limit after an API call"
@@ -456,6 +561,13 @@ ProceedMigration() {
     COUNTER=$((COUNTER + 1))
 
    done < "${INPUT_FILE_NAME}"
+
+    if [ "$DEBUG" -eq 1 ]; then
+      DATE=$(date +%Y%m%d%H%M)
+  
+      echo "" >> "$LOG_FILE_NAME" 2>&1
+      echo "[$DATE] Finished with migration"  >> "$LOG_FILE_NAME" 2>&1
+    fi
 }
 
 
@@ -464,14 +576,12 @@ ProceedMigration() {
 Header() {
 
   GraphicArt
-  if [ "$DEBUG" -eq 1 ]; then
-     GenerateLogFile
-  fi;
+
+  GenerateLogFile
 
   GetGHEURLDestination
   GetPersonalAccessTokenDestination
   GetOrganizations
-
 
   # Print the rate limit at the beginning of script execution:
   echo ""
@@ -479,8 +589,51 @@ Header() {
   echo "Your rate limit before the script execution"
   echo "######################################################"
 
+
+  if [ "$DEBUG" -eq 1 ]; then
+    DATE=$(date +%Y%m%d%H%M)
+
+    echo "" >> "$LOG_FILE_NAME" 2>&1
+    echo "######################################################"  >> "$LOG_FILE_NAME" 2>&1
+    echo "Your rate limit before the script execution"  >> "$LOG_FILE_NAME" 2>&1
+    echo "######################################################"  >> "$LOG_FILE_NAME" 2>&1
+  fi
   CheckAPILimitDestination
 
+}
+
+
+#####################################################################
+#### Function Footer ################################################
+Footer() {
+  # Print the rate limit at the end of script execution:
+  echo ""
+  echo "######################################################"
+  echo "Your rate limit at the end of script execution"
+  echo "######################################################"
+
+  if [ "$DEBUG" -eq 1 ]; then
+    DATE=$(date +%Y%m%d%H%M)
+
+    echo "" >> "$LOG_FILE_NAME" 2>&1
+    echo "######################################################"  >> "$LOG_FILE_NAME" 2>&1
+    echo "Your rate limit at the end of the script execution"  >> "$LOG_FILE_NAME" 2>&1
+    echo "######################################################"  >> "$LOG_FILE_NAME" 2>&1
+  fi
+
+  CheckAPILimitDestination
+
+  echo ""
+  echo "Done with migrating Webhooks from file [$INPUT_FILE_NAME] to [$DEST_ORG]"
+  echo "Please check your log file [$LOG_FILE_NAME]"
+
+  if [ "$DEBUG" -eq 1 ]; then
+    DATE=$(date +%Y%m%d%H%M)
+
+    echo "" >> "$LOG_FILE_NAME" 2>&1
+    echo "Done with migrating Webhooks from file [$INPUT_FILE_NAME] to [$DEST_ORG]"  >> "$LOG_FILE_NAME" 2>&1
+    echo "Please check your log file [$LOG_FILE_NAME]"  >> "$LOG_FILE_NAME" 2>&1
+  fi
 }
 
 ###########
@@ -505,8 +658,12 @@ DEBUG=1
 ##########
 Header
 
-
 #####################################################################
 ######################## MAIN #######################################
 
 ProceedMigration
+
+##########
+# Footer #
+##########
+Footer
